@@ -17,8 +17,11 @@
 
 using namespace std;
 
-queue<int> clientGroups;
+queue<int> clientGroupsQueue;
 mutex mtx;
+
+string** ingredients = new string*[ingredientAmount];
+string** recipes = new string*[recipeAmount];
 
 class Customer{
     private:
@@ -51,6 +54,12 @@ class IngredientInventory {
             amount = amount - neededAmount;
         }
 };
+
+void initializeGlobalMatrix (string** mainMatrix, int rows, int columns) {
+    for (int i = 0; i < rows; i++) {
+        mainMatrix[i] = new string[columns];
+    }
+}
 
 void openIngredients (IngredientInventory read) {
     ofstream inventory("ingredientes.csv");
@@ -198,43 +207,48 @@ void cooking_duration(){
 }
 
 void addClientGroupsQueue() {
-    int clients = 0;
     int spawn_rate_time = 20000;
     while(true){
-        this_thread::sleep_for(milliseconds(spawn_rate_time));
+        lock_guard<mutex> guard(mtx);
+        int clientsForTable = 1 + rand() % 6;
+        clientGroupsQueue.push(clientsForTable);
+
+        this_thread::sleep_for(chrono::milliseconds(spawn_rate_time));
     }
 }
 
-void runFunctionsForTable () {
-    int clientsForTable = 1 + rand() % 6;
+void runFunctionsForTable (int clientsForTable) {
+    int* clientRecipes = new int[clientsForTable];
+    for (int i = 0; i < clientsForTable; i++) {
+        int recipeForClient = rand() % recipeAmount;
+        clientRecipes[i] = recipeForClient;
+    } 
+    // Se recorre cada pedido para buscar sus ingredientes y se van acumulando para ver si es posible preparar todos los platillos de la mesa (funcion aparte)
+    // Si es posible, se restan los ingredientes y se inicia su preparacion; si no, el grupo de clientes se va (funcion aparte)
+    // En caso se preparen los pedidos, los clientes los consumen y una vez consumidos, pagan y se retiran del restaurante (puede estar vinculada a la funcion de arriba)
 }
 
 int main() { // Boceto del proceso
     bool programLoop = true;
-    string** ingredients = new string*[ingredientAmount];
-    for (int i = 0; i < recipeAmount; i++) {
-        ingredients[i] = new string[ingredientCategories];
-    }
-    string** recipes = new string*[recipeAmount];
-    for (int i = 0; i < recipeAmount; i++) {
-        recipes[i] = new string[recipeCategories];
-    }
+    initializeGlobalMatrix(ingredients, ingredientAmount, ingredientCategories);
+    initializeGlobalMatrix(recipes, recipeAmount, recipeCategories);
+
     openIngredients(); // Añadir argumentos
     readIngredients(ingredients);
     openRecipes(); // Añadir argumentos
     readRecipes(recipes);
+
+    thread threadAddCG(addClientGroupsQueue);
     
     while (programLoop) {
         // Implementar SDL
-        // Aparecen clientes y se envian a una mesa
-        int clientsForTable = 1 + rand() % 6;
-        // Pasan los clientes a una mesa vacía
-        for (int i = 0; i < clientsForTable; i++) {
-            int recipeForClient = rand() % recipeAmount;
-            // Almacenar el pedido de cada cliente
+        // Se busca una mesa vacía
+        if (!clientGroupsQueue.empty()) {
+            int clientsForTable = clientGroupsQueue.front();
+            clientGroupsQueue.pop();
         }
-        // Se recorre cada pedido para buscar sus ingredientes
-        recipes[]
+        // Se envia el grupo de clientes a una mesa vacia
+        
     }
     return 0;
 }
