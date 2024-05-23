@@ -1,19 +1,24 @@
 #include <iostream>
+#include <cstdlib>
 #include <iomanip>
 #include <string>
 #include <chrono>
 #include <thread>
+#include <mutex>
 #include <sstream>
-#include<fstream>
-#include<windows.h>
+#include <fstream>
+#include <queue>
+#include <windows.h>
 #define ingredientAmount 13
 #define ingredientCategories 3
 #define recipeAmount 5
 #define recipeCategories 16
 #define tableAmount 6
 
-
 using namespace std;
+
+queue<int> clientGroups;
+mutex mtx;
 
 class Customer{
     private:
@@ -27,11 +32,20 @@ class IngredientInventory {
     private:
 
     public:
-    string name;
-    int amount;
-    int unitaryCost;
+        string name;
+        int amount;
+        int unitaryCost;
 
-     IngredientInventory(string n, int amt, int cost) : name(n), amount(amt), unitaryCost(cost) {}
+        IngredientInventory(string n, int amt, int cost) : name(n), amount(amt), unitaryCost(cost) {}
+
+        bool checkAmount (int actualAmount, int neededAmount) { // Habra una variable fuera q ira contando la cantidad de ingredientes necesarios y sumandolos; esto con el fin de sumar la cantidad de ingredientes necesarios en una sola mesa
+            if (actualAmount >= neededAmount) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
 
         void substractIngredient(int neededAmount) {
             amount = amount - neededAmount;
@@ -50,7 +64,7 @@ void openIngredients (IngredientInventory read) {
 
 }
 
-void readIngredients (){
+void readIngredients (string** inventory){
     ifstream file("ingredients.csv");
     if (!file.is_open()) {
         cerr << "Error: No se pudo abrir el archivo 'ingredients.csv'" << endl;
@@ -59,7 +73,6 @@ void readIngredients (){
     string line;
     getline(file, line);
     int position = 0;
-    string inventory[ingredientAmount][ingredientCategories];
 
     while(getline(file, line)){
         stringstream stream(line); 
@@ -128,7 +141,7 @@ void openRecipes (Recipes read) {
 
 }
 
-void readRecipes (){
+void readRecipes (string** recipes){
     ifstream file("recipes.csv");
     if (!file.is_open()) {
         cerr << "Error: No se pudo abrir el archivo 'recipes.csv'" << endl;
@@ -137,7 +150,6 @@ void readRecipes (){
     string line;
     getline(file, line);
     int position = 0;
-    string recipes[recipeAmount][recipeCategories];
 
     while(getline(file, line)){
         stringstream stream(line); 
@@ -183,4 +195,46 @@ void readRecipes (){
 
 void cooking_duration(){
     int prep_time;
+}
+
+void addClientGroupsQueue() {
+    int clients = 0;
+    int spawn_rate_time = 20000;
+    while(true){
+        this_thread::sleep_for(milliseconds(spawn_rate_time));
+    }
+}
+
+void runFunctionsForTable () {
+    int clientsForTable = 1 + rand() % 6;
+}
+
+int main() { // Boceto del proceso
+    bool programLoop = true;
+    string** ingredients = new string*[ingredientAmount];
+    for (int i = 0; i < recipeAmount; i++) {
+        ingredients[i] = new string[ingredientCategories];
+    }
+    string** recipes = new string*[recipeAmount];
+    for (int i = 0; i < recipeAmount; i++) {
+        recipes[i] = new string[recipeCategories];
+    }
+    openIngredients(); // Añadir argumentos
+    readIngredients(ingredients);
+    openRecipes(); // Añadir argumentos
+    readRecipes(recipes);
+    
+    while (programLoop) {
+        // Implementar SDL
+        // Aparecen clientes y se envian a una mesa
+        int clientsForTable = 1 + rand() % 6;
+        // Pasan los clientes a una mesa vacía
+        for (int i = 0; i < clientsForTable; i++) {
+            int recipeForClient = rand() % recipeAmount;
+            // Almacenar el pedido de cada cliente
+        }
+        // Se recorre cada pedido para buscar sus ingredientes
+        recipes[]
+    }
+    return 0;
 }
