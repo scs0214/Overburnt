@@ -8,8 +8,13 @@
 #include <sstream>
 #include <fstream>
 #include <queue>
+#include <vector>
+#include <condition_variable>
+#include <functional>
 #include <windows.h>
-#define ingredientAmount 13
+#define ingredients_csv "ingredients.csv"
+#define recipes_csv "recipes.csv"
+#define ingredientAmount 12
 #define ingredientCategories 3
 #define recipeAmount 5
 #define recipeCategories 16
@@ -59,18 +64,6 @@ void initializeGlobalMatrix (string** mainMatrix, int rows, int columns) {
     for (int i = 0; i < rows; i++) {
         mainMatrix[i] = new string[columns];
     }
-}
-
-void openIngredients (IngredientInventory read) {
-    ofstream inventory("ingredientes.csv");
-    if (!inventory.is_open()) {
-        cerr << "Error: No se pudo abrir el archivo 'ingredients.csv'" << endl;
-        return;
-    }
-    inventory.open("ingredients.csv",ios::app);
-    inventory<<read.name<<","<<read.amount<<","<<read.unitaryCost<<","<<endl;
-    inventory.close();
-
 }
 
 void readIngredients (string** inventory){
@@ -138,35 +131,23 @@ Recipes (const string& name, int prc, int prepTime, int eatTime, const string& i
           ingredient4(ing4), amount4(amt4), ingredient5(ing5), amount5(amt5), ingredient6(ing6), amount6(amt6) {}
 };
 
-void openRecipes (Recipes read) {
-    ofstream file("recipes.csv");
+void readRecipes(string** recipes) {
+    ifstream file(recipes_csv);
     if (!file.is_open()) {
-        cerr << "Error: No se pudo abrir el archivo 'recipes.csv'" << endl;
-        return;
-    }
-    file.open("recipes.csv",ios::app);
-    file<<read.recipeName<<","<<read.price<<","<<read.approxPrepTime<<","<<read.ingredient1<<","<<read.amount1<<","<<read.ingredient2<<","<<read.amount2<<","<<read.ingredient3<<","<<read.amount3<<","<<read.ingredient4<<","<<read.amount4<<","<<read.ingredient5<<","<<read.amount5<<","<<read.ingredient6<<","<<read.amount6<<","<<endl;
-    file.close();
-
-}
-
-void readRecipes (string** recipes){
-    ifstream file("recipes.csv");
-    if (!file.is_open()) {
-        cerr << "Error: No se pudo abrir el archivo 'recipes.csv'" << endl;
+        cerr << "Error: Could not open the file 'recipes.csv'" << endl;
         return;
     }
     string line;
     getline(file, line);
     int position = 0;
 
-    while(getline(file, line)){
-        stringstream stream(line); 
-        string recipeName, price, approxPrepTime, approxEatingtime, ingredient1, amount1, ingredient2, amount2, ingredient3, amount3, ingredient4, amount4, ingredient5, amount5, ingredient6, amount6,
+    while (getline(file, line)) {
+        stringstream stream(line);
+        string recipeName, price, approxPrepTime, approxEatingTime, ingredient1, amount1, ingredient2, amount2, ingredient3, amount3, ingredient4, amount4, ingredient5, amount5, ingredient6, amount6;
         getline(stream, recipeName, ',');
         getline(stream, price, ',');
         getline(stream, approxPrepTime, ',');
-        getline(stream, approxEatingtime, ',');
+        getline(stream, approxEatingTime, ',');
         getline(stream, ingredient1, ',');
         getline(stream, amount1, ',');
         getline(stream, ingredient2, ',');
@@ -183,7 +164,7 @@ void readRecipes (string** recipes){
         recipes[position][0] = recipeName;
         recipes[position][1] = price;
         recipes[position][2] = approxPrepTime;
-        recipes[position][3] = approxEatingtime;
+        recipes[position][3] = approxEatingTime;
         recipes[position][4] = ingredient1;
         recipes[position][5] = amount1;
         recipes[position][6] = ingredient2;
@@ -228,14 +209,20 @@ void runFunctionsForTable (int clientsForTable) {
     // En caso se preparen los pedidos, los clientes los consumen y una vez consumidos, pagan y se retiran del restaurante (puede estar vinculada a la funcion de arriba)
 }
 
+void printM(string** matrix, int R, int C) {
+    for (int i = 0; i < R; i++) {
+        for (int j = 0; j < C; j++) {
+            printf("| %s ", matrix[i][j].c_str());
+        }
+        printf("| \n");
+    }
+}
+
 int main() { // Boceto del proceso
     bool programLoop = true;
     initializeGlobalMatrix(ingredients, ingredientAmount, ingredientCategories);
     initializeGlobalMatrix(recipes, recipeAmount, recipeCategories);
-
-    openIngredients(); // Añadir argumentos
     readIngredients(ingredients);
-    openRecipes(); // Añadir argumentos
     readRecipes(recipes);
 
     thread threadAddCG(addClientGroupsQueue);
