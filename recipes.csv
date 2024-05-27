@@ -1,6 +1,6 @@
-recipeName,price,approxPrepTime,approxEatingTime,ingredient1,amount1,ingredient2,amount2,ingredient3,amount3,ingredient4,amount4,ingredient5,amount5,ingredient6,amount6
+recipeName,price,approxPrepTime,approxEatingTime,ingredient1,amount1,ingredient2,amount2,ingredient3,amount3,ingredient4,amount4
 cheeseEmpanadas,1000,18000,9000,flour,4,cheese,1
 hamburger,1600,20000,16000,burgerBun,2,beef,1,cheese,1,lettuce,1
-tacos,1500,14000,13000,tortilla,3,shreddedBeef,3,ketchup,1,mayonnaise,1
+tacos,1500,14000,13000,tortilla,3,shreddedBeef,3
 frenchFries,1600,16000,14000,frenchFry,20,ketchup,2,mayonnaise,2
 hotdog,1000,8000,8000,hotdogBun,1,sausage,1,ketchup,1,mayonnaise,1
