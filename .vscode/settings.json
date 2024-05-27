@@ -2,6 +2,8 @@
     "files.associations": {
         "atomic": "cpp",
         "condition_variable": "cpp",
-        "iosfwd": "cpp"
+        "iosfwd": "cpp",
+        "algorithm": "cpp",
+        "iostream": "cpp"
     }
 }

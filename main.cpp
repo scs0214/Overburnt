@@ -1,5 +1,8 @@
-#include <iostream>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <algorithm>
 #include <cstdlib>
+#include <iostream>
 #include <iomanip>
 #include <string>
 #include <chrono>
@@ -11,7 +14,7 @@
 #include <vector>
 #include <condition_variable>
 #include <functional>
-#include <windows.h>
+
 #define ingredients_csv "ingredients.csv"
 #define recipes_csv "recipes.csv"
 #define ingredientAmount 12
@@ -19,15 +22,62 @@
 #define recipeAmount 5
 #define recipeCategories 12
 #define tableAmount 6
+#define PREP_DELAY 10
+#define EATING_DELAY 15
+#define MIN_PREP_TIME 5
+#define MIN_EATING_TIME 5
 
 using namespace std;
 
 queue<int> clientGroupsQueue;
 mutex mtx;
 condition_variable cv;
-
 int contForIDs = 1;
 int neededAmounts[ingredientAmount];
+
+bool init(SDL_Window** window, SDL_Renderer** renderer, const int width, const int height) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        std::cerr << "SDL could not be initialized. " << SDL_GetError() << std::endl;
+        return false;
+    }
+
+    *window = SDL_CreateWindow("Overburnt Restaurant (Memory Leaks)", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_SHOWN);
+    if (!*window) {
+        std::cerr << "Window could not be created. " << SDL_GetError() << std::endl;
+        return false;
+    }
+
+    *renderer = SDL_CreateRenderer(*window, -1, SDL_RENDERER_ACCELERATED);
+    if (!*renderer) {
+        std::cerr << "Renderer could not be created. " << SDL_GetError() << std::endl;
+        return false;
+    }
+
+    int imgFlags = IMG_INIT_PNG;
+    if (!(IMG_Init(imgFlags) & imgFlags)) {
+        std::cerr << "SDL_image could not be initialized. " << IMG_GetError() << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+SDL_Texture* loadTexture(const std::string& path, SDL_Renderer* renderer) {
+    SDL_Texture* newTexture = nullptr;
+    SDL_Surface* loadedSurface = IMG_Load(path.c_str());
+    if (!loadedSurface) {
+        std::cerr << "Image could not be loaded. " << IMG_GetError() << std::endl;
+        return nullptr;
+    }
+
+    newTexture = SDL_CreateTextureFromSurface(renderer, loadedSurface);
+    if (!newTexture) {
+        std::cerr << "Texture could not be created. " << SDL_GetError() << std::endl;
+    }
+
+    SDL_FreeSurface(loadedSurface);
+    return newTexture;
+}
 
 class Customer {
 private:
@@ -94,7 +144,6 @@ void readIngredients() {
     }
     string line;
     getline(file, line);
-    int position = 0;
 
     while (getline(file, line)) {
         stringstream stream(line);
@@ -130,7 +179,6 @@ void readRecipes() {
     }
     string line;
     getline(file, line);
-    int position = 0;
 
     while (getline(file, line)) {
         stringstream stream(line);
@@ -153,10 +201,6 @@ void readRecipes() {
     file.close();
 }
 
-void cooking_duration() {
-    int prep_time;
-}
-
 void addClientGroupsQueue() {
     int spawn_rate_time = 20000;
     while (true) {
@@ -165,6 +209,7 @@ void addClientGroupsQueue() {
             lock_guard<mutex> guard(mtx);
             clientGroupsQueue.push(clientsForTable);
         }
+        cv.notify_all();
         this_thread::sleep_for(chrono::milliseconds(spawn_rate_time));
     }
 }
@@ -176,15 +221,16 @@ void setArray0(int array[], int length) {
 }
 
 bool checkIngredientsAvailability(int clientOrders[], int clientsForTable) {
+    lock_guard<mutex> lock(mtx);
     bool ingredientsAvailable = true;
     for (int i = 0; i < clientsForTable; i++) {
         int ingredientVectorIndex = 0;
         int recipeIndex = clientOrders[i];
         while (ingredientVectorIndex < recipesVector[recipeIndex].ingredients.size()) {
             for (int j = 0; j < ingredientAmount; j++) {
-                if (ingredientInventoryVector[i].name == recipesVector[recipeIndex].ingredients[searchIngredientInRecipe]) { // recipes[recipeIndex][searchIngredientInRecipe]
-                    neededAmounts[j] = neededAmounts[j] + stoi(recipes[recipeIndex][searchIngredientInRecipe+1]);
-                }         
+                if (ingredientInventoryVector[j].name == recipesVector[recipeIndex].ingredients[ingredientVectorIndex].first) {
+                    neededAmounts[j] += recipesVector[recipeIndex].ingredients[ingredientVectorIndex].second;
+                }
             }
             ingredientVectorIndex++;
         }
@@ -197,29 +243,66 @@ bool checkIngredientsAvailability(int clientOrders[], int clientsForTable) {
     return ingredientsAvailable;
 }
 
-void substractIngredients() {
-    for (int i = 0; i < ingredientAmount; i++) {
-        int newValue = ingredientInventoryVector[i].amount - neededAmounts[i];
-        ingredientInventoryVector[i].amount = newValue;
-    }
-    setArray0(neededAmounts, ingredientAmount);
-}
-
 void substractIngredientsToUse() {
     {
         unique_lock<mutex> lock(mtx); // Lock necessary for the ingredient substraction
         for (int i = 0; i < ingredientAmount; i++) {
-            // Add class (with vector) substractIngredient(neededAmounts[i]);
+            ingredientInventoryVector[i].substractIngredient(neededAmounts[i]);
         }
-    } 
+        setArray0(neededAmounts, ingredientAmount);
+    }
 }
 
-void sendOrderToPrepQueue(int OrdersArray[], int clientsAmount) {
+int cookingDuration(const string& recipeName) {
+    string tempName;
+    int finalPrep_time;
+
+    srand(static_cast<unsigned int>(time(nullptr)));
+    int randomBinary = (rand() % 2 == 0) ? -1 : 1;
+    int randomRange = rand() % (PREP_DELAY + 1);
+
+    for (size_t i = 0; i < recipesVector.size(); i++) {
+        tempName = recipesVector[i].recipeName;
+        if (tempName == recipeName) {
+            int approxPrep_time = recipesVector[i].approxPrepTime;
+            finalPrep_time = approxPrep_time + (approxPrep_time * randomBinary * randomRange);
+
+            if (finalPrep_time < 0) {
+                finalPrep_time = MIN_PREP_TIME;
+            }
+        }
+    }
+    return finalPrep_time;
+}
+
+int eatingDuration(const string& recipeForClient) {
+    string tempName;
+    int finalEating_time;
+
+    srand(static_cast<unsigned int>(time(nullptr)));
+    int randomBinary = (rand() % 2 == 0) ? -1 : 1;
+    int randomRange = rand() % (EATING_DELAY + 1);
+
+    for (size_t i = 0; i < recipesVector.size(); i++) {
+        tempName = recipesVector[i].recipeName;
+        if (tempName == recipeForClient) {
+            int approxEating = recipesVector[i].approxEatingTime;
+            finalEating_time = approxEating + (approxEating * randomBinary * randomRange);
+
+            if (finalEating_time < 0) {
+                finalEating_time = MIN_EATING_TIME;
+            }
+        }
+    }
+    return finalEating_time;
+}
+
+void sendOrderToPrepQueue(int ordersArray[], int clientsAmount) {
     {
         unique_lock<mutex> lock(mtx); // Lock necessary for ordersQueue and contForIDs
-        Order orderToQueue("", 0);
         for(int i = 0; i < clientsAmount; i++) {
-            Order orderToQueue("insert", contForIDs); // Insertar valor utilizando el vector de recetas (utilizando OrdersArray)
+            int recipeNum = ordersArray[i];
+            Order orderToQueue(recipesVector[recipeNum].recipeName, contForIDs);
             ordersQueue.push(orderToQueue);
             contForIDs++;
         }
@@ -267,7 +350,7 @@ private:
 Tables::Tables(size_t threads) : stop(false) {
     for (size_t i = 0; i < threads; ++i) {
         tableVector.emplace_back(
-            [this, i] {
+            table(thread([this, i] {
                 for (;;) {
                     function<void()> task;
 
@@ -290,7 +373,7 @@ Tables::Tables(size_t threads) : stop(false) {
                         this->tableVector[i].available = true;
                     }
                 }
-            }
+            }))
         );
     }
 }
@@ -314,17 +397,40 @@ void Tables::enqueue(F&& function) {
     condition.notify_one();
 }
 
-int main() {
+int main(int argc, char* args[]) {
     bool programLoop = true;
+
+    SDL_Window* window = nullptr;
+    SDL_Renderer* renderer = nullptr;
+    const int screenWidth = 800;
+    const int screenHeight = 600;
+    if (!init(&window, &renderer, screenWidth, screenHeight)) {
+        std::cerr << "Initialization failed." << std::endl;
+        return -1;
+    }
+    SDL_Texture* backgroundTexture = loadTexture("images/restaurantFloor.png", renderer);
+    if (!backgroundTexture) {
+        std::cerr << "Texture load failed." << std::endl;
+        return -1;
+    }
+    SDL_Event e;
+
     readIngredients();
     readRecipes();
     setArray0(neededAmounts, ingredientAmount);
-    
     thread threadAddCG(addClientGroupsQueue);
-
     Tables tables(6);
 
     while(programLoop) {
+        while (SDL_PollEvent(&e) != 0) {
+            if (e.type == SDL_QUIT) {
+                programLoop = false;
+            }
+        }
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, backgroundTexture, nullptr, nullptr);
+        SDL_RenderPresent(renderer);
+
         int clientsForTable = 0;
         {
             unique_lock<mutex> lock(mtx);
@@ -340,7 +446,11 @@ int main() {
     }
 
     threadAddCG.join();
-    return 0;
-
+    SDL_DestroyTexture(backgroundTexture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    IMG_Quit();
+    SDL_Quit();
+    
     return 0;
 }

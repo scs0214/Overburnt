@@ -2,14 +2,21 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "C/C++: g++.exe build active file",
+            "label": "C/C++: g++.exe build active file with SDL2",
             "command": "C:\\msys64\\ucrt64\\bin\\g++.exe",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
                 "${file}",
                 "-o",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+                "${fileDirname}\\${fileBasenameNoExtension}.exe",
+                "-IC:/msys64/ucrt64/include/SDL2", // Include directory for SDL2 headers
+                "-LC:/msys64/ucrt64/lib",         // Library directory for SDL2 libraries
+                "-lmingw32",
+                "-lSDL2main",
+                "-lSDL2",
+                "-lSDL2_image",
+                "-mwindows"
             ],
             "options": {
                 "cwd": "${fileDirname}"
