@@ -28,35 +28,42 @@ condition_variable cv;
 
 int contForIDs = 1;
 int neededAmounts[ingredientAmount];
-string** ingredients = new string*[ingredientAmount];
-string** recipes = new string*[recipeAmount];
 
 class Customer {
 private:
     int ID;
+
 public:
+    void setID(int IDNum) {
+        this->ID = IDNum;
+    }
+    int getID() const {
+        return ID;
+    }
+
+    Customer(int num) : ID(num) {}
 };
 
 class Order {
 private:
     string recipeOrdered;
     int customerID;
+
 public:
     void setRecipeOrdered(string orderedDish) {
         this->recipeOrdered = orderedDish;
     }
-
     string getRecipeOrdered() const {
         return recipeOrdered;
     }
-
-    void setCustomerID(string ID) {
-        this->recipeOrdered = ID;
+    void setCustomerID(int ID) {
+        this->customerID = ID;
     }
-
     int getCustomerID() const {
         return customerID;
     }
+
+    Order(string recipeName, int ID) : recipeOrdered(recipeName), customerID(ID) {}
 };
 
 queue<Order> ordersQueue;
@@ -67,20 +74,19 @@ public:
     int amount;
     int unitaryCost;
 
-    IngredientInventory(string n, int amt, int cost) : name(n), amount(amt), unitaryCost(cost) {}
-
     bool checkAmount(int actualAmount, int neededAmount) {
         return actualAmount >= neededAmount;
     }
-
     void substractIngredient(int neededAmount) {
         amount -= neededAmount;
     }
+
+    IngredientInventory(string n, int amt, int cost) : name(n), amount(amt), unitaryCost(cost) {}
 };
 
 vector<IngredientInventory> ingredientInventoryVector;
 
-void readIngredients(string** inventory) {
+void readIngredients() {
     ifstream file(ingredients_csv);
     if (!file.is_open()) {
         cerr << "Error: Could not open the file 'ingredients.csv'" << endl;
@@ -97,10 +103,7 @@ void readIngredients(string** inventory) {
         getline(stream, amount, ',');
         getline(stream, unitaryCost, ',');
 
-        inventory[position][0] = name;
-        inventory[position][1] = amount;
-        inventory[position][2] = unitaryCost;
-        position++;
+        ingredientInventoryVector.emplace_back(name, stoi(amount), stoi(unitaryCost));
     }
     file.close();
 }
@@ -111,24 +114,15 @@ public:
     int price;
     int approxPrepTime;
     int approxEatingTime;
-    string ingredient1;
-    int amount1;
-    string ingredient2;
-    int amount2;
-    string ingredient3;
-    int amount3;
-    string ingredient4;
-    int amount4;
+    vector<pair<string, int>> ingredients;
 
-    Recipes(string name, int prc, int prepTime, int eatTime, string ing1, int amt1, string ing2, int amt2, string ing3, int amt3, const string& ing4, int amt4)
-        : recipeName(name), price(prc), approxPrepTime(prepTime), approxEatingTime(eatTime),
-        ingredient1(ing1), amount1(amt1), ingredient2(ing2), amount2(amt2), ingredient3(ing3), amount3(amt3),
-        ingredient4(ing4), amount4(amt4) {}
+    Recipes(string name, int prc, int prepTime, int eatTime, vector<pair<string, int>> ing)
+    : recipeName(name), price(prc), approxPrepTime(prepTime), approxEatingTime(eatTime), ingredients(ing) {}
 };
 
-vector<IngredientInventory> recipesVector;
+vector<Recipes> recipesVector;
 
-void readRecipes(string** recipes) {
+void readRecipes() {
     ifstream file(recipes_csv);
     if (!file.is_open()) {
         cerr << "Error: Could not open the file 'recipes.csv'" << endl;
@@ -140,60 +134,27 @@ void readRecipes(string** recipes) {
 
     while (getline(file, line)) {
         stringstream stream(line);
-        string recipeName, price, approxPrepTime, approxEatingTime, ingredient1, amount1, ingredient2, amount2, ingredient3, amount3, ingredient4, amount4, ingredient5, amount5, ingredient6, amount6;
+        string recipeName, price, approxPrepTime, approxEatingTime, ingredient;
+        int amount;
+        vector<pair<string, int>> ingredients;
+
         getline(stream, recipeName, ',');
         getline(stream, price, ',');
         getline(stream, approxPrepTime, ',');
         getline(stream, approxEatingTime, ',');
-        getline(stream, ingredient1, ',');
-        getline(stream, amount1, ',');
-        getline(stream, ingredient2, ',');
-        getline(stream, amount2, ',');
-        getline(stream, ingredient3, ',');
-        getline(stream, amount3, ',');
-        getline(stream, ingredient4, ',');
-        getline(stream, amount4, ',');
-        getline(stream, ingredient5, ',');
-        getline(stream, amount5, ',');
-        getline(stream, ingredient6, ',');
-        getline(stream, amount6, ',');
 
-        recipes[position][0] = recipeName;
-        recipes[position][1] = price;
-        recipes[position][2] = approxPrepTime;
-        recipes[position][3] = approxEatingTime;
-        recipes[position][4] = ingredient1;
-        recipes[position][5] = amount1;
-        recipes[position][6] = ingredient2;
-        recipes[position][7] = amount2;
-        recipes[position][8] = ingredient3;
-        recipes[position][9] = amount3;
-        recipes[position][10] = ingredient4;
-        recipes[position][11] = amount4;
+        while (getline(stream, ingredient, ',') && getline(stream, line, ',')) {
+            amount = stoi(line);
+            ingredients.emplace_back(ingredient, amount);
+        }
 
-        position++;
+        recipesVector.emplace_back(recipeName, stoi(price), stoi(approxPrepTime), stoi(approxEatingTime), ingredients);
     }
     file.close();
 }
 
-
-class Table {
-private:
-    bool available;
-public:
-    Table(int cap) : available(true) {}
-    bool isAvailable() const { return available; }
-    void setAvailability(bool avail) { available = avail; }
-};
-
 void cooking_duration() {
     int prep_time;
-}
-
-void initializeGlobalMatrix(string** mainMatrix, int rows, int columns) {
-    for (int i = 0; i < rows; i++) {
-        mainMatrix[i] = new string[columns];
-    }
 }
 
 void addClientGroupsQueue() {
@@ -217,19 +178,19 @@ void setArray0(int array[], int length) {
 bool checkIngredientsAvailability(int clientOrders[], int clientsForTable) {
     bool ingredientsAvailable = true;
     for (int i = 0; i < clientsForTable; i++) {
-        int searchIngredientInRecipe = 4;
+        int ingredientVectorIndex = 0;
         int recipeIndex = clientOrders[i];
-        while (searchIngredientInRecipe < recipeCategories) {
+        while (ingredientVectorIndex < recipesVector[recipeIndex].ingredients.size()) {
             for (int j = 0; j < ingredientAmount; j++) {
-                if (ingredients[j][0] == recipes[recipeIndex][searchIngredientInRecipe]) {
+                if (ingredientInventoryVector[i].name == recipesVector[recipeIndex].ingredients[searchIngredientInRecipe]) { // recipes[recipeIndex][searchIngredientInRecipe]
                     neededAmounts[j] = neededAmounts[j] + stoi(recipes[recipeIndex][searchIngredientInRecipe+1]);
                 }         
             }
-            searchIngredientInRecipe += 2;
+            ingredientVectorIndex++;
         }
     }
     for (int i = 0; i < ingredientAmount; i++) {
-        if (neededAmounts[i] > stoi(ingredients[i][1])) {
+        if (neededAmounts[i] > ingredientInventoryVector[i].amount) {
             ingredientsAvailable = false;
         }
     }
@@ -238,56 +199,75 @@ bool checkIngredientsAvailability(int clientOrders[], int clientsForTable) {
 
 void substractIngredients() {
     for (int i = 0; i < ingredientAmount; i++) {
-        int newValue = stoi(ingredients[i][1]) - neededAmounts[i];
-        ingredients[i][1] = to_string(newValue);
+        int newValue = ingredientInventoryVector[i].amount - neededAmounts[i];
+        ingredientInventoryVector[i].amount = newValue;
     }
     setArray0(neededAmounts, ingredientAmount);
 }
 
-void sendOrderToPrepQueue(int OrdersArray[]) {
+void substractIngredientsToUse() {
+    {
+        unique_lock<mutex> lock(mtx); // Lock necessary for the ingredient substraction
+        for (int i = 0; i < ingredientAmount; i++) {
+            // Add class (with vector) substractIngredient(neededAmounts[i]);
+        }
+    } 
+}
 
+void sendOrderToPrepQueue(int OrdersArray[], int clientsAmount) {
+    {
+        unique_lock<mutex> lock(mtx); // Lock necessary for ordersQueue and contForIDs
+        Order orderToQueue("", 0);
+        for(int i = 0; i < clientsAmount; i++) {
+            Order orderToQueue("insert", contForIDs); // Insertar valor utilizando el vector de recetas (utilizando OrdersArray)
+            ordersQueue.push(orderToQueue);
+            contForIDs++;
+        }
+    }
 }
 
 void tablesProcess(int clientsForTable) {
-    int clientOrdersArrayNum[clientsForTable];
+    int ordersArrayNum[clientsForTable];
     for (int i = 0; i < clientsForTable; i++) {
         int recipeForClient = rand() % recipeAmount;
-        clientOrdersArrayNum[i] = recipeForClient;
+        ordersArrayNum[i] = recipeForClient;
     }
-    if (checkIngredientsAvailability(clientOrdersArrayNum, clientsForTable)) {
-        {
-            unique_lock<mutex> lock(mtx);
-            Order orderToQueue;
-            for (int i = 0; i < ingredientAmount; i++) {
-                // Add class (with vector) substractIngredient(neededAmounts[i]);
-            }
-            orderToQueue.setRecipeOrdered("insertar"); // Insertar valor utilizando el vector de recetas
 
-        }   
+    if (checkIngredientsAvailability(ordersArrayNum, clientsForTable)) {
+        substractIngredientsToUse();
+        sendOrderToPrepQueue(ordersArrayNum, clientsForTable);
     }
 }
 
-class ThreadPool {
+class Tables {
 public:
-    ThreadPool(size_t threads);
-    ~ThreadPool();
+    Tables(size_t threads);
+    ~Tables();
 
     template<class F>
     void enqueue(F&& function);
 
 private:
-    vector<thread> workers;
+    struct table {
+        thread tableThread;
+        bool available;
+        table(thread t) : tableThread(move(t)), available(true) {}
+    };
+
+    vector<table> tableVector;
     queue<function<void()>> tasks;
 
     mutex queue_mutex;
     condition_variable condition;
     bool stop;
+
+    void tableFunction(int index);
 };
 
-ThreadPool::ThreadPool(size_t threads) : stop(false) {
+Tables::Tables(size_t threads) : stop(false) {
     for (size_t i = 0; i < threads; ++i) {
-        workers.emplace_back(
-            [this] {
+        tableVector.emplace_back(
+            [this, i] {
                 for (;;) {
                     function<void()> task;
 
@@ -300,43 +280,49 @@ ThreadPool::ThreadPool(size_t threads) : stop(false) {
                         this->tasks.pop();
                     }
 
+                    {
+                        unique_lock<mutex> lock(this->queue_mutex);
+                        this->tableVector[i].available = false;
+                    }
                     task();
+                    {
+                        unique_lock<mutex> lock(this->queue_mutex);
+                        this->tableVector[i].available = true;
+                    }
                 }
             }
         );
     }
 }
 
-ThreadPool::~ThreadPool() {
+Tables::~Tables() {
     {
         unique_lock<mutex> lock(queue_mutex);
         stop = true;
     }
     condition.notify_all();
-    for (thread &worker : workers)
-        worker.join();
+    for (table &table : tableVector)
+        table.tableThread.join();
 }
 
 template<class F>
-void ThreadPool::enqueue(F&& function) {
+void Tables::enqueue(F&& function) {
     {
         unique_lock<mutex> lock(queue_mutex);
-        tasks.emplace(forward<F>(f));
+        tasks.emplace(forward<F>(function));
     }
     condition.notify_one();
 }
 
 int main() {
     bool programLoop = true;
-    initializeGlobalMatrix(ingredients, ingredientAmount, ingredientCategories);
-    initializeGlobalMatrix(recipes, recipeAmount, recipeCategories);
-    readIngredients(ingredients);
-    readRecipes(recipes);
+    readIngredients();
+    readRecipes();
     setArray0(neededAmounts, ingredientAmount);
     
     thread threadAddCG(addClientGroupsQueue);
 
-    ThreadPool tables(6);
+    Tables tables(6);
 
     while(programLoop) {
         int clientsForTable = 0;
