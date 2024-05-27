@@ -1,3 +1,5 @@
+// Code by: Memory Leaks (Maria Nazareth Perozo C36016 - Roy Urbina C37971 - Samir Caro C31666)
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <algorithm>
@@ -15,6 +17,7 @@
 #include <condition_variable>
 #include <functional>
 
+// Definition of constant values needed for the program
 #define ingredients_csv "ingredients.csv"
 #define recipes_csv "recipes.csv"
 #define ingredientAmount 12
@@ -29,12 +32,14 @@
 
 using namespace std;
 
+// Declaration of global variables 
 queue<int> clientGroupsQueue;
 mutex mtx;
 condition_variable cv;
 int contForIDs = 1;
 int neededAmounts[ingredientAmount];
 
+// Function that initializes SDL
 bool init(SDL_Window** window, SDL_Renderer** renderer, const int width, const int height) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL could not be initialized. " << SDL_GetError() << std::endl;
@@ -62,6 +67,7 @@ bool init(SDL_Window** window, SDL_Renderer** renderer, const int width, const i
     return true;
 }
 
+// Function used to load images
 SDL_Texture* loadTexture(const std::string& path, SDL_Renderer* renderer) {
     SDL_Texture* newTexture = nullptr;
     SDL_Surface* loadedSurface = IMG_Load(path.c_str());
@@ -79,6 +85,7 @@ SDL_Texture* loadTexture(const std::string& path, SDL_Renderer* renderer) {
     return newTexture;
 }
 
+// Declaration of classes needed for the program, including their parameters (as well as some queues and vectors that save class instances)
 class Customer {
 private:
     int ID;
@@ -95,11 +102,12 @@ public:
 };
 
 class Order {
-private:
+public:
     string recipeOrdered;
     int customerID;
+    int finalPrepTime;
+    int finalEatTime;
 
-public:
     void setRecipeOrdered(string orderedDish) {
         this->recipeOrdered = orderedDish;
     }
@@ -112,11 +120,23 @@ public:
     int getCustomerID() const {
         return customerID;
     }
+    void setfinalPrepTime(int fpt) {
+        this->finalPrepTime = fpt;
+    }
+    int getFinalPrepTime() const {
+        return finalPrepTime;
+    }
+    void setFinalEatingTime(int fet) {
+        this->finalEatTime = fet;
+    }
+    int getFinalEatingTime() const {
+        return finalEatTime;
+    }
 
-    Order(string recipeName, int ID) : recipeOrdered(recipeName), customerID(ID) {}
+    Order(string recipeName, int ID, int fpt, int fet) : recipeOrdered(recipeName), customerID(ID), finalPrepTime(fpt), finalEatTime(fet) {}
 };
 
-queue<Order> ordersQueue;
+queue<vector<Order>> ordersQueue;
 
 class IngredientInventory {
 public:
@@ -136,6 +156,7 @@ public:
 
 vector<IngredientInventory> ingredientInventoryVector;
 
+// Function that reads the ingredients.csv file and saves their values in a vector
 void readIngredients() {
     ifstream file(ingredients_csv);
     if (!file.is_open()) {
@@ -171,6 +192,7 @@ public:
 
 vector<Recipes> recipesVector;
 
+// Function that reads the recipes.csv file and saves their values in a vector
 void readRecipes() {
     ifstream file(recipes_csv);
     if (!file.is_open()) {
@@ -201,6 +223,7 @@ void readRecipes() {
     file.close();
 }
 
+// Function that adds client groups (as integers that represent their size) to a queue every certain time
 void addClientGroupsQueue() {
     int spawn_rate_time = 20000;
     while (true) {
@@ -214,12 +237,14 @@ void addClientGroupsQueue() {
     }
 }
 
+// Function used to reset the values of the array that saves the needed amount of ingredients for every group of orders
 void setArray0(int array[], int length) {
     for (int i = 0; i < length; i++) {
         array[i] = 0;
     }
 }
 
+// Function that checks if ingredients are available to create the orders given by a table and returns a boolean depending on the result
 bool checkIngredientsAvailability(int clientOrders[], int clientsForTable) {
     lock_guard<mutex> lock(mtx);
     bool ingredientsAvailable = true;
@@ -243,6 +268,7 @@ bool checkIngredientsAvailability(int clientOrders[], int clientsForTable) {
     return ingredientsAvailable;
 }
 
+// Function used to substract the ingredients needed and to reset the neededAmounts array
 void substractIngredientsToUse() {
     {
         unique_lock<mutex> lock(mtx); // Lock necessary for the ingredient substraction
@@ -253,6 +279,7 @@ void substractIngredientsToUse() {
     }
 }
 
+// Function that calculates how much time a certain order will take to be created
 int cookingDuration(const string& recipeName) {
     string tempName;
     int finalPrep_time;
@@ -275,6 +302,7 @@ int cookingDuration(const string& recipeName) {
     return finalPrep_time;
 }
 
+// Function that calculates how much time a certain order will take to be eaten
 int eatingDuration(const string& recipeForClient) {
     string tempName;
     int finalEating_time;
@@ -297,18 +325,41 @@ int eatingDuration(const string& recipeForClient) {
     return finalEating_time;
 }
 
+// Function that sends an order group to the preparation queue
 void sendOrderToPrepQueue(int ordersArray[], int clientsAmount) {
     {
         unique_lock<mutex> lock(mtx); // Lock necessary for ordersQueue and contForIDs
+        vector<Order> orderGroupVector;
         for(int i = 0; i < clientsAmount; i++) {
             int recipeNum = ordersArray[i];
-            Order orderToQueue(recipesVector[recipeNum].recipeName, contForIDs);
-            ordersQueue.push(orderToQueue);
+            string orderRecipeName = recipesVector[recipeNum].recipeName;
+            Order orderToQueue(orderRecipeName, contForIDs, cookingDuration(orderRecipeName), eatingDuration(orderRecipeName));
+            orderGroupVector.push_back(orderToQueue);
             contForIDs++;
         }
+        ordersQueue.push(orderGroupVector);
     }
 }
 
+// Function that calculates how much time a certain group of orders will take to be cooked
+void chefFunction() {
+    {
+        unique_lock<mutex> lock(mtx); // Lock necessary for ordersQueue and contForIDs
+        vector<Order> chefVector;
+        int totalPrepTime = 0;
+        cv.wait(lock, [] { return !clientGroupsQueue.empty(); });
+        if (!ordersQueue.empty()) {
+            chefVector = ordersQueue.front();
+            ordersQueue.pop();
+        }
+        for (int i = 0; i < chefVector.size(); i++) {
+            totalPrepTime = totalPrepTime + chefVector[i].finalPrepTime;
+        }
+        this_thread::sleep_for(chrono::milliseconds(totalPrepTime));
+    }
+}
+
+// Function used in the threadpool that manages tables, which generates orders for each client in a table and checks if the necessary amount of ingredients is available
 void tablesProcess(int clientsForTable) {
     int ordersArrayNum[clientsForTable];
     for (int i = 0; i < clientsForTable; i++) {
@@ -319,9 +370,11 @@ void tablesProcess(int clientsForTable) {
     if (checkIngredientsAvailability(ordersArrayNum, clientsForTable)) {
         substractIngredientsToUse();
         sendOrderToPrepQueue(ordersArrayNum, clientsForTable);
+        chefFunction();
     }
 }
 
+// Class that manages the threadpool used for the tables
 class Tables {
 public:
     Tables(size_t threads);
@@ -397,6 +450,7 @@ void Tables::enqueue(F&& function) {
     condition.notify_one();
 }
 
+// Main part of the program, defines values for the SDL implementations and runs all the functions declared for the backend, as well as creating a threadpool of 6 threads
 int main(int argc, char* args[]) {
     bool programLoop = true;
 
@@ -451,6 +505,6 @@ int main(int argc, char* args[]) {
     SDL_DestroyWindow(window);
     IMG_Quit();
     SDL_Quit();
-    
+    // Destroys all the SDL implementations used and ends the thread
     return 0;
 }
